@@ -180,7 +180,6 @@
     .inv-footer { page-break-before: auto; margin-top: 10mm; }
   }
 </style>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
 <body>
 
@@ -573,20 +572,51 @@ function esc(str) {
 }
 
 
-// ── save as PDF ──
+// ── print invoice in clean popup (no URL/title headers) ──
 function savePDF() {
   const { number, custName, orderNum } = _lastSaveData;
   const parts = [number, custName, orderNum].filter(Boolean);
-  const filename = parts.join(' - ') + '.pdf';
-  const el = document.getElementById('invoice-doc');
-  const opt = {
-    margin:      [10, 10, 10, 10],
-    filename:    filename,
-    image:       { type: 'jpeg', quality: 0.98 },
-    html2canvas: { scale: 2, useCORS: true },
-    jsPDF:       { unit: 'mm', format: 'a4', orientation: 'portrait' }
-  };
-  html2pdf().set(opt).from(el).save();
+  const title = parts.join(' - ');
+  const docHtml = document.getElementById('invoice-doc').innerHTML;
+  const win = window.open('', '_blank', 'width=900,height=700');
+  win.document.write(`<!DOCTYPE html><html><head>
+<meta charset="UTF-8">
+<title>${title}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  @page { size: A4; margin: 12mm 12mm; }
+  body { font-family: Arial, sans-serif; font-size: .88rem; line-height: 1.5; color: #222; padding: 20px; }
+  .inv-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 22px; }
+  .inv-brand { color: #1a4fa0; font-size: 1.6rem; font-weight: 900; margin-bottom: 4px; }
+  .inv-address { font-size: .82rem; line-height: 1.7; color: #444; }
+  .inv-meta { text-align: right; font-size: .85rem; }
+  .inv-meta table { border-collapse: collapse; margin-left: auto; }
+  .inv-meta td { padding: 2px 6px; }
+  .inv-meta td:first-child { font-weight: 700; color: #1a4fa0; }
+  .inv-type-badge { display: inline-block; background: #1a4fa0; color: #fff; font-size: 1.05rem; font-weight: 900; padding: 5px 18px; border-radius: 4px; margin-bottom: 10px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .inv-divider { border: none; border-top: 2px solid #1a4fa0; margin: 14px 0; }
+  .items-tbl { width: 100%; border-collapse: collapse; margin-top: 8px; }
+  .items-tbl thead { display: table-header-group; }
+  .items-tbl thead tr { background: #1a4fa0; color: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .items-tbl th { padding: 9px 10px; text-align: left; font-size: .82rem; }
+  .items-tbl td { padding: 9px 10px; border-bottom: 1px solid #e8e8e8; font-size: .83rem; vertical-align: top; }
+  .items-tbl tbody tr:nth-child(even) { background: #f7f9ff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .items-tbl tr { page-break-inside: avoid; break-inside: avoid; }
+  .td-price, .td-total { text-align: right; white-space: nowrap; }
+  .td-qty { text-align: center; }
+  .total-row { display: flex; justify-content: flex-end; margin-top: 12px; page-break-inside: avoid; break-inside: avoid; }
+  .total-box { background: #1a4fa0; color: #fff; padding: 10px 22px; border-radius: 6px; font-size: 1rem; font-weight: 700; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .inv-note { margin-top: 22px; background: #f7f9ff; border-left: 4px solid #1a4fa0; padding: 12px 16px; border-radius: 0 6px 6px 0; font-size: .82rem; page-break-inside: avoid; break-inside: avoid; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .inv-note strong { display: block; margin-bottom: 4px; color: #1a4fa0; }
+  .inv-banking { margin-top: 18px; font-size: .82rem; page-break-inside: avoid; break-inside: avoid; }
+  .inv-banking strong { color: #1a4fa0; display: block; margin-bottom: 6px; font-size: .88rem; }
+  .bank-grid { display: grid; grid-template-columns: 140px 1fr; gap: 2px 10px; }
+  .bank-label { font-weight: 700; color: #444; }
+  .inv-footer { margin-top: 18px; font-size: .75rem; color: #888; text-align: center; border-top: 1px solid #ddd; padding-top: 10px; page-break-inside: avoid; }
+</style>
+</head><body>${docHtml}</body></html>`);
+  win.document.close();
+  win.onload = () => { win.focus(); win.print(); };
 }
 
 // attach docType change after DOM ready
