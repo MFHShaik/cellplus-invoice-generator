@@ -166,6 +166,7 @@
     .total-box { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   }
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
 <body>
 
@@ -253,7 +254,7 @@
   <div class="print-actions">
     <button class="btn-back" onclick="goBack()">← Back to Editor</button>
     <button class="btn-save" onclick="saveInvoice()">Save as HTML</button>
-    <button class="btn-print" onclick="window.print()">Print / Save as PDF</button>
+    <button class="btn-print" onclick="savePDF()">Save as PDF</button>
   </div>
   <div id="invoice-doc"></div>
 </div>
@@ -521,7 +522,8 @@ body{font-family:Arial,sans-serif;padding:30px 40px;color:#222;font-size:.88rem;
 .bank-grid{display:grid;grid-template-columns:140px 1fr;gap:2px 10px}
 .bank-label{font-weight:700;color:#444}
 .inv-footer{margin-top:18px;font-size:.75rem;color:#888;text-align:center;border-top:1px solid #ddd;padding-top:10px}
-</style></head><body>${docHtml}</body></html>`;
+</style><script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+</head><body>${docHtml}</body></html>`;
 
   const blob = new Blob([fullHtml], { type: 'text/html' });
   const a = document.createElement('a');
@@ -555,6 +557,23 @@ function resetForm() {
 function esc(str) {
   if (!str) return '';
   return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+
+// ── save as PDF ──
+function savePDF() {
+  const { number, custName, orderNum } = _lastSaveData;
+  const parts = [number, custName, orderNum].filter(Boolean);
+  const filename = parts.join(' - ') + '.pdf';
+  const el = document.getElementById('invoice-doc');
+  const opt = {
+    margin:      [10, 10, 10, 10],
+    filename:    filename,
+    image:       { type: 'jpeg', quality: 0.98 },
+    html2canvas: { scale: 2, useCORS: true },
+    jsPDF:       { unit: 'mm', format: 'a4', orientation: 'portrait' }
+  };
+  html2pdf().set(opt).from(el).save();
 }
 
 // attach docType change after DOM ready
