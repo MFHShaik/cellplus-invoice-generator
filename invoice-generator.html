@@ -157,13 +157,27 @@
 
   /* print */
   @media print {
+    @page { margin: 15mm 12mm; size: A4; }
     body { background: #fff; }
     #builder, .print-actions { display: none !important; }
     #preview-wrap { display: block !important; }
     #invoice-doc { border: none; padding: 0; max-width: 100%; }
     .inv-type-badge { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    .items-tbl thead tr { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .items-tbl thead tr { -webkit-print-color-adjust: exact; print-color-adjust: exact; background: #1a4fa0 !important; }
     .total-box { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .inv-note { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    /* keep header together, never break inside a row */
+    .inv-header { page-break-inside: avoid; break-inside: avoid; }
+    .items-tbl tr { page-break-inside: avoid; break-inside: avoid; }
+    /* keep totals + notes + banking together on same page if possible */
+    .total-row, .inv-note, .inv-banking, .inv-footer {
+      page-break-inside: avoid; break-inside: avoid;
+    }
+    /* repeat table header on each page */
+    .items-tbl thead { display: table-header-group; }
+    /* push banking + footer to bottom if page breaks */
+    .inv-banking { page-break-before: auto; }
+    .inv-footer { page-break-before: auto; margin-top: 10mm; }
   }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
@@ -427,7 +441,7 @@ function generateInvoice() {
     </div>` : '';
 
   // banking (only for invoices)
-  const bankHtml = type === 'INVOICE' ? `
+  const bankHtml = type === 'INVOICE' && paymentStatus !== 'paid' ? `
     <div class="inv-banking">
       <strong>Banking Details for Payment</strong>
       <div class="bank-grid">
