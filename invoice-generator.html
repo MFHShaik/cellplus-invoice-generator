@@ -206,10 +206,15 @@
     </div>
     <div id="paymentStatusWrap">
       <label>Payment Status</label>
-      <select id="paymentStatus">
+      <select id="paymentStatus" onchange="toggleAmountPaid()">
         <option value="owing">Amount Owing</option>
-        <option value="paid">Amount Paid</option>
+        <option value="partial">Partially Paid</option>
+        <option value="paid">Paid in Full</option>
       </select>
+    </div>
+    <div id="amountPaidWrap" style="display:none">
+      <label>Amount Paid (R)</label>
+      <input type="number" id="amountPaid" min="0" step="0.01" placeholder="0.00">
     </div>
     <div>
       <label>Date</label>
@@ -320,6 +325,13 @@ function setDocNumber() {
   const seq = document.getElementById('docSeq').value;
   document.getElementById('docNumber').value = buildDocNumber(t, seq);
   document.getElementById('paymentStatusWrap').style.display = t === 'INVOICE' ? '' : 'none';
+  if (t !== 'INVOICE') document.getElementById('amountPaidWrap').style.display = 'none';
+  else toggleAmountPaid();
+}
+
+function toggleAmountPaid() {
+  const status = document.getElementById('paymentStatus').value;
+  document.getElementById('amountPaidWrap').style.display = status === 'partial' ? '' : 'none';
 }
 
 // ── items ──
@@ -391,6 +403,7 @@ function generateInvoice() {
   const custContact = document.getElementById('custContact').value.trim() || '—';
   const orderNum= document.getElementById('orderNumber').value.trim();
   const paymentStatus = document.getElementById('paymentStatus').value;
+  const amountPaidRaw = parseFloat(document.getElementById('amountPaid').value) || 0;
   const note    = document.getElementById('noteText').value.trim();
   const terms   = document.getElementById('termsText').value.trim();
   const items   = collectItems();
@@ -439,7 +452,24 @@ function generateInvoice() {
       ${esc(terms).replace(/\n/g,'<br>')}
     </div>` : '';
 
-  // banking (only for invoices)
+  // partial payment calculations
+  const amountPaid   = paymentStatus === 'partial' ? Math.min(amountPaidRaw, grandTotal) : (paymentStatus === 'paid' ? grandTotal : 0);
+  const balanceOwing = grandTotal - amountPaid;
+
+  // payment summary rows for partial invoices
+  const partialSummaryHtml = paymentStatus === 'partial' ? `
+    <div class="total-row" style="margin-top:4px">
+      <div class="total-box" style="background:#27ae60;font-size:.9rem;padding:8px 18px">
+        Amount Paid &nbsp; ${fmt(amountPaid)}
+      </div>
+    </div>
+    <div class="total-row" style="margin-top:4px">
+      <div class="total-box" style="background:#e67e22;font-size:1rem">
+        Balance Owing &nbsp; ${fmt(balanceOwing)}
+      </div>
+    </div>` : '';
+
+  // banking (only for invoices with outstanding balance)
   const bankHtml = type === 'INVOICE' && paymentStatus !== 'paid' ? `
     <div class="inv-banking">
       <strong>Banking Details for Payment</strong>
@@ -482,10 +512,11 @@ function generateInvoice() {
       <tbody>${itemsRows}</tbody>
     </table>
     <div class="total-row">
-      <div class="total-box" style="background:${type==='QUOTE'?'#1a4fa0':paymentStatus==='paid'?'#27ae60':'#1a4fa0'}">
-        ${type==='QUOTE'?'Total':paymentStatus==='paid'?'Total Amount Paid':'Total Amount Owing'} &nbsp; ${fmt(grandTotal)}
+      <div class="total-box" style="background:${type==='QUOTE'?'#1a4fa0':paymentStatus==='paid'?'#27ae60':paymentStatus==='partial'?'#1a4fa0':'#1a4fa0'}">
+        ${type==='QUOTE'?'Total':paymentStatus==='paid'?'Total Paid in Full':'Invoice Total'} &nbsp; ${fmt(grandTotal)}
       </div>
     </div>
+    ${partialSummaryHtml}
     ${noteHtml}
     ${termsHtml}
     ${bankHtml}
