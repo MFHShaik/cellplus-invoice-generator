@@ -55,6 +55,14 @@
   .col-disc   { width: 90px; }
   .col-total  { width: 100px; font-weight: 600; font-size: .85rem; padding-top: 12px !important; }
   .col-del    { width: 36px; text-align: center; }
+  .col-paid   { width: 54px; text-align: center; }
+  .btn-paid {
+    background: #eee; color: #888; border: 1.5px solid #ccc; border-radius: 5px;
+    font-size: .7rem; font-weight: 700; padding: 4px 6px; cursor: pointer;
+    transition: background .15s, color .15s;
+    white-space: nowrap;
+  }
+  .btn-paid.is-paid { background: #27ae60; color: #fff; border-color: #27ae60; }
   .disc-input { border-color: #e67e22 !important; }
   .disc-label { font-size:.7rem; color:#e67e22; display:block; margin-bottom:2px; font-weight:600; }
   .btn-del {
@@ -248,6 +256,7 @@
         <th class="col-price">Unit Price (R)</th>
         <th class="col-disc">Discount (R)</th>
         <th class="col-total">Total</th>
+        <th class="col-paid">Paid</th>
         <th class="col-del"></th>
       </tr>
     </thead>
@@ -349,6 +358,7 @@ function addItem() {
     <td class="col-price"><input type="number" id="item-price-${id}" value="" placeholder="0.00" step="0.01" oninput="calcRow(${id})"></td>
     <td class="col-disc"><input type="number" id="item-disc-${id}" value="" placeholder="0.00" step="0.01" min="0" class="disc-input" oninput="calcRow(${id})"></td>
     <td class="col-total" id="item-total-${id}">R 0.00</td>
+    <td class="col-paid"><button class="btn-paid" id="item-paid-${id}" onclick="togglePaid(${id})">Paid</button></td>
     <td class="col-del"><button class="btn-del" onclick="removeItem(${id})">×</button></td>
   `;
   tbody.appendChild(tr);
@@ -356,6 +366,10 @@ function addItem() {
 function removeItem(id) {
   const row = document.getElementById('item-row-' + id);
   if (row) row.remove();
+}
+function togglePaid(id) {
+  const btn = document.getElementById('item-paid-' + id);
+  btn.classList.toggle('is-paid');
 }
 function calcRow(id) {
   const qty   = parseFloat(document.getElementById('item-qty-'  + id).value) || 0;
@@ -385,9 +399,10 @@ function collectItems() {
     const qty   = parseFloat(document.getElementById('item-qty-'  +id)?.value) || 0;
     const price = parseFloat(document.getElementById('item-price-'+id)?.value) || 0;
     const disc  = parseFloat(document.getElementById('item-disc-' +id)?.value) || 0;
+    const paid  = document.getElementById('item-paid-' +id)?.classList.contains('is-paid') || false;
     const subtotal = qty * price;
     const total    = Math.max(0, subtotal - disc);
-    if (title || desc) items.push({ title, desc, qty, price, disc, subtotal, total });
+    if (title || desc) items.push({ title, desc, qty, price, disc, subtotal, total, paid });
   });
   return items;
 }
@@ -425,8 +440,8 @@ function generateInvoice() {
 
   // items rows
   const itemsRows = items.map(i => `
-    <tr>
-      <td><strong>${esc(i.title)}</strong></td>
+    <tr style="${i.paid ? 'background:#f0fff4;' : ''}">
+      <td><strong>${esc(i.title)}</strong>${i.paid ? ' <span style="display:inline-block;background:#27ae60;color:#fff;font-size:.65rem;font-weight:700;border-radius:3px;padding:1px 5px;vertical-align:middle">PAID</span>' : ''}</td>
       <td>${esc(i.desc).replace(/\n/g,'<br>')}</td>
       <td class="td-qty">${i.qty}</td>
       <td class="td-price">${fmt(i.price)}</td>
@@ -452,12 +467,17 @@ function generateInvoice() {
       ${esc(terms).replace(/\n/g,'<br>')}
     </div>` : '';
 
-  // partial payment calculations
-  const amountPaid   = paymentStatus === 'partial' ? Math.min(amountPaidRaw, grandTotal) : (paymentStatus === 'paid' ? grandTotal : 0);
-  const balanceOwing = grandTotal - amountPaid;
+  // payment calculations — per-item paid flags take priority; fall back to manual amount field
+  const itemPaidTotal = items.filter(i => i.paid).reduce((s, i) => s + i.total, 0);
+  const hasItemPaid   = itemPaidTotal > 0;
+  const amountPaid    = hasItemPaid
+    ? itemPaidTotal
+    : (paymentStatus === 'partial' ? Math.min(amountPaidRaw, grandTotal) : (paymentStatus === 'paid' ? grandTotal : 0));
+  const balanceOwing  = grandTotal - amountPaid;
+  const isPartial     = amountPaid > 0 && balanceOwing > 0;
 
-  // payment summary rows for partial invoices
-  const partialSummaryHtml = paymentStatus === 'partial' ? `
+  // payment summary rows
+  const partialSummaryHtml = type === 'INVOICE' && isPartial ? `
     <div class="total-row" style="margin-top:4px">
       <div class="total-box" style="background:#27ae60;font-size:.9rem;padding:8px 18px">
         Amount Paid &nbsp; ${fmt(amountPaid)}
@@ -470,7 +490,8 @@ function generateInvoice() {
     </div>` : '';
 
   // banking (only for invoices with outstanding balance)
-  const bankHtml = type === 'INVOICE' && paymentStatus !== 'paid' ? `
+  const fullyPaid = type === 'INVOICE' && amountPaid >= grandTotal;
+  const bankHtml = type === 'INVOICE' && !fullyPaid ? `
     <div class="inv-banking">
       <strong>Banking Details for Payment</strong>
       <div class="bank-grid">
@@ -512,8 +533,8 @@ function generateInvoice() {
       <tbody>${itemsRows}</tbody>
     </table>
     <div class="total-row">
-      <div class="total-box" style="background:${type==='QUOTE'?'#1a4fa0':paymentStatus==='paid'?'#27ae60':paymentStatus==='partial'?'#1a4fa0':'#1a4fa0'}">
-        ${type==='QUOTE'?'Total':paymentStatus==='paid'?'Total Paid in Full':'Invoice Total'} &nbsp; ${fmt(grandTotal)}
+      <div class="total-box" style="background:${type==='QUOTE'?'#1a4fa0':fullyPaid?'#27ae60':'#1a4fa0'}">
+        ${type==='QUOTE'?'Total':fullyPaid?'Total Paid in Full':'Invoice Total'} &nbsp; ${fmt(grandTotal)}
       </div>
     </div>
     ${partialSummaryHtml}
